@@ -1,6 +1,8 @@
 **/Debug
 **/Testing
+**/Distribution
 **/.vs
+**/*.exe
 **/*.dll
 **/*.lib
 **/*.bco

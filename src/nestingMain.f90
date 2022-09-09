@@ -174,13 +174,9 @@ contains
     polyFile       = "..\RunTime\Polygon.csv"
     childGridFile  = "..\RunTime\Child.grd"
     
-    !parentGridFile = "C:\Projects\nesting\RunTime\S2G_new_lidar_full_roads_PAOF_NoProjects_v7.grd"
-    !polyFile = "C:\Projects\nesting\RunTime\polygonNeches.csv"
-    !childGridFile = "C:\Projects\nesting\RunTime\ChildNeches.grd"
-    
-    !parentGridFile = "D:\HEC\HEC-RAS\Shahidul\RAS_enhancement\Mesh_Allflows\CCDB_all_CC_N_DB_v2.grd"
-    !polyFile = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\polygonBoundaryNeches.csv"
-    !childGridFile = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\ChildNeches.grd"
+    !parentGridFile = "CCDB_all_CC_N_DB_v2.grd"
+    !polyFile = "polygonBoundaryNeches.csv"
+    !childGridFile = "ChildNeches.grd"
     
     call nesting_gensub(parentGridFile, polyFile, childGridFile, status, msg)
     
@@ -196,13 +192,9 @@ contains
 !****************************************
     implicit none
     
-    !savePointFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Savepoints\elev_stat.151"
-    !polyFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\boxBoundaryNeches.csv"
-    !childGridFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\SubdomainSavePointsNeches.grd"
-    
-    savePointFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Savepoints\elev_stat.151"
-    polyFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\DickinsonBayou\Ike\boxBC.csv"
-    childGridFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\DickinsonBayou\Ike\DickinsonChildIkeSavePoints.grd"
+    savePointFile = "..\Savepoints\elev_stat.151"
+    polyFile = "..\Nesting\DickinsonBayou\Ike\boxBC.csv"
+    childGridFile = "..\Nesting\DickinsonBayou\Ike\DickinsonChildIkeSavePoints.grd"
     
     call nesting_trisp(savePointFile, polyFile, childGridFile, status, msg)
     
@@ -222,18 +214,10 @@ contains
     nts = 1
     allocate(parentWSEFiles(nts),childWSEFiles(nts))
     
-    !childGridFile = "C:\Projects\nesting\RunTime\Child.grd"
-    !parentWSEFiles(1) = "C:\Projects\nesting\RunTime\fort.63"
-    !childWSEFiles(1) = "C:\Projects\nesting\RunTime\Child.63"
-    
-    !childGridFile = "C:\Projects\nesting\RunTime\ChildNeches.grd"
-    !parentWSEFiles(1) = "C:\Projects\nesting\RunTime\CTXCS_TP_0011_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_S2G03BE01_fort.63"
-    !childWSEFiles(1) = "C:\Projects\nesting\RunTime\ChildNeches.63"
-    
-    childGridFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\SubdomainSavePointsNeches.grd"
-    parentWSEFiles(1) = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Savepoints\" &
+    childGridFile = "..\Nesting\SubdomainSavePointsNeches.grd"
+    parentWSEFiles(1) = "..\Savepoints\" &
       // "CTXCS_TP_0009_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_CCDB01E02T_All_Flows_CCDB_TIMEVARY_Oct13_fort.61"
-    childWSEFiles(1) = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\Ike\ChildNechesIke.61"
+    childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.61"
     
     call nesting_extractwse(childGridFile, nts, parentWSEFiles, childWSEFiles, status, msg)
     
@@ -257,14 +241,10 @@ contains
     parentWSEFiles(1) = "..\RunTime\fort.63"
     childWSEFiles(1)  = "..\RunTime\Child.63"
     
-    !childGridFile = "C:\Projects\nesting\RunTime\ChildNeches.grd"
-    !parentWSEFiles(1) = "C:\Projects\nesting\RunTime\CTXCS_TP_0011_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_S2G03BE01_fort.63"
-    !childWSEFiles(1) = "C:\Projects\nesting\RunTime\ChildNeches.63"
-    
-    !childGridFile = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\ChildNeches.grd"
-    !parentWSEFiles(1) = "D:\HEC\HEC-RAS\Shahidul\RAS_enhancement\Model_results\" &
+    !childGridFile = "..\Nesting\ChildNeches.grd"
+    !parentWSEFiles(1) = "..\Model_results\" &
     !  // "CTXCS_TP_0009_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_CCDB01E02T_All_Flows_CCDB_TIMEVARY_Oct13_fort.63"
-    !childWSEFiles(1) = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\Ike\ChildNechesIke.63"
+    !childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.63"
     
     call nesting_extractwse(childGridFile, nts, parentWSEFiles, childWSEFiles, status, msg)
     
@@ -288,11 +268,11 @@ contains
     pointsWSEFiles(1) = "..\RunTime\fort.csv"
     factor = 1d0/0.3048d0 !Convert from m to ft
     
-    !parentGridFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\ADCIRC Models\Run_009\CCDB_all_CC_N_DB_v2.grd"
-    !pointsCoordFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\ADCIRC Models\Run_009\DK_multi_facept.csv"
-    !parentWSEFiles(1) = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\ADCIRC Models\Run_009\" &
+    !parentGridFile = "..\ADCIRC Models\Run_009\CCDB_all_CC_N_DB_v2.grd"
+    !pointsCoordFile = "..\ADCIRC Models\Run_009\DK_multi_facept.csv"
+    !parentWSEFiles(1) = "..\ADCIRC Models\Run_009\" &
     !  // "CTXCS_TP_0009_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_CCDB01E02T_All_Flows_CCDB_TIMEVARY_Oct13_fort.63"
-    !pointsWSEFiles(1) = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\ADCIRC Models\Run_009\wseBoundary_Run_0009.csv"
+    !pointsWSEFiles(1) = "..\ADCIRC Models\Run_009\wseBoundary_Run_0009.csv"
     !factor = 1d0/0.3048d0 !Convert from m to ft
     
     call nesting_interpwse(parentGridFile, pointsCoordFile, &
@@ -318,15 +298,10 @@ contains
     pointsWSEFiles(1) = "..\RunTime\Child.csv"
     factor = 1d0/0.3048d0 !Convert from m to ft
     
-    !childGridFile =  "C:\Projects\nesting\RunTime\ChildNeches.grd"
-    !pointsCoordFile = "C:\Projects\nesting\RunTime\boundaryCoordinatesNeches.csv"
-    !childWSEFiles(1) = "C:\Projects\nesting\RunTime\ChildNeches.63"
-    !pointsWSEFiles(1) = "C:\Projects\nesting\RunTime\wseBoundaryNeches.csv"
-    
-    !childGridFile  = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\ChildNeches.grd"
-    !pointsCoordFile = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\boundaryCoordinatesNeches.csv"
-    !childWSEFiles(1) = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\Ike\ChildNechesIke.63"
-    !pointsWSEFiles(1) = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\Ike\wseBoundaryNechesIke.csv"
+    !childGridFile  = "..\Nesting\ChildNeches.grd"
+    !pointsCoordFile = "..\Nesting\boundaryCoordinatesNeches.csv"
+    !childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.63"
+    !pointsWSEFiles(1) = "..\Nesting\Ike\wseBoundaryNechesIke.csv"
     !factor = 1d0/0.3048d0 !Convert from m to ft
     
     call nesting_interpwse(childGridFile, pointsCoordFile, &
@@ -346,10 +321,10 @@ contains
     nts = 1
     allocate(childWSEFiles(nts),pointsWSEFiles(nts))
     
-    childGridFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\SubdomainSavePointsNeches.grd"
-    pointsCoordFile = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\boundaryCoordinatesNeches.csv"
-    childWSEFiles(1) = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\Ike\ChildNechesIke.61"
-    pointsWSEFiles(1) = "D:\HEC\HEC-RAS\Projects\Variable_WSE_BC\Nesting\Ike\wseBoundaryNechesIkeSP.csv"
+    childGridFile = "..\Nesting\SubdomainSavePointsNeches.grd"
+    pointsCoordFile = "..\Nesting\boundaryCoordinatesNeches.csv"
+    childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.61"
+    pointsWSEFiles(1) = "..\Nesting\Ike\wseBoundaryNechesIkeSP.csv"
     factor = 1d0/0.3048d0 !Convert from m to ft
     
     call nesting_interpwse(childGridFile, pointsCoordFile, &
