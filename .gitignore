@@ -1,7 +1,5 @@
 **/Debug
-**/Release
 **/Testing
-**/RunTime
 **/.vs
 **/*.dll
 **/*.lib
@@ -26,7 +24,6 @@
 **/*.pdb
 **/*.htm
 **/*.u2d
-**/*.exe
 **/*__genmod.f90
 **/*.manifest
 **/*.exp

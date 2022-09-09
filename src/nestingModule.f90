@@ -85,15 +85,22 @@ contains
     write(*,*) 'Reading Polygon File: ',trim(polyFile)
     call read_csv(polyFile,polyxy)
     np = size(polyxy,1)
-    write(*,*)'   Success'
+    if(np < 3)then
+      msg = '  Error: Polygon must contain at least 3 points'
+      status = -1
+      return
+    else
+      write(*,*)'   Success'
+    endif
     
     !Create Child Mesh
     write(*,*) 'Creating Child Mesh'
     call create_child_mesh(P, C, np, polyxy(:,1), polyxy(:,2))
+    C%filename = childGridFile
+    C%header   = P%header
     write(*,*)'   Success'
     
     !Write Child Mesh
-    C%filename = childGridFile
     write(*,*) 'Writing Child Mesh: ',trim(C%filename)
     call write_grid14(C%filename, P%header, &
       C%numElems, C%numNodes, C%nodexyz, C%elem2node, C%nodeParent)
@@ -440,7 +447,7 @@ contains
     double precision,allocatable:: elevNodes(:), elevPts(:)
     character(len=512):: header
     integer:: i, j, node, numTimeSteps, step, ts_inc, irType
-    integer:: ierr, numWetNodes, num
+    integer:: ierr, numWetNodes, num, intTimeSteps
     double precision:: t_inc, time, elevDry, elev
     double precision,parameter:: ELEV_DRY = -99999.0
     
@@ -480,11 +487,19 @@ contains
     endif
     write(23,200) ((fpts(i),','),i=1,npts-1),fpts(npts)
     
+    write(*,*) 'Number of time steps: ',numTimeSteps
+    write(*,*) 'Interpolating Values'
+    
+    intTimeSteps = numTimeSteps/20
+    
     allocate(elevNodes(numNodes))
     allocate(elevPts(npts))
     do i=1,numTimeSteps
+      if(numElems > 1000000 .and. mod(i,intTimeSteps)==0)then
+        write(*,'(2x,I2,A1)') 100*i/numTimeSteps,'%'
+      endif
+      
       !Step Header
-      elevDry = ELEV_DRY
       numWetNodes = -1
       read(63,150,iostat=ierr) time, step, numWetNodes, elevDry !time in seconds
       
@@ -496,6 +511,7 @@ contains
           elevNodes(node) = elev
         enddo
       else !Full format
+        elevDry = ELEV_DRY
         do j=1,numNodes
           read(63,*) node,elevNodes(j)
         enddo
@@ -518,6 +534,10 @@ contains
       write(23,200) ((elevPts(j),','),j=1,npts-1),elevPts(npts)
     enddo
     
+    if(numElems > 1000000)then
+      write(*,'(2x,A)') '100%'
+    endif
+    
     close(63)
     close(23)
     
@@ -531,11 +551,11 @@ contains
     valDry, npts, intp, cntp, valPts)
 !******************************************************
     implicit none
-    integer,intent(in):: numNodes
+    integer,         intent(in) :: numNodes
     double precision,intent(in) :: valNodes(numNodes)
     double precision,intent(in) :: valDry
-    integer,    intent(in) :: npts
-    integer,    intent(in) :: intp(3,npts)
+    integer,         intent(in) :: npts
+    integer,         intent(in) :: intp(3,npts)
     double precision,intent(in) :: cntp(3,npts)
     double precision,intent(out):: valpts(npts)
     integer:: i,j,idx,ind(3)
@@ -549,12 +569,12 @@ contains
         if(abs(valNodes(j) - valDry) > 1e-6)then
           wcoef(idx) = cntp(idx,i) !Wet
         else
-          wcoef(idx) = 0.0 !Dry
+          wcoef(idx) = 0.0d0 !Dry
         endif
       enddo
       !Interpolate
       sumw = sum(wcoef)
-      if(sumw > 1e-20)then !At least one node wet
+      if(sumw > 1d-20)then !At least one node wet
         wcoef = wcoef / sumw !Normalize wet weights
         valpts(i) = sum(wcoef * valNodes(ind))
       else !All nodes wet
@@ -824,30 +844,37 @@ contains
 !**********************************************************************
     implicit none
     !Parent Unstructured Triangular Mesh
-    integer,    intent(in):: numElems                  !# of cells (elements)
-    integer,    intent(in):: numNodes                  !# of nodes
-    integer,    intent(in):: elem2node(3,numElems)     !Cells (element) to node connectivity
+    integer,         intent(in):: numElems                  !# of cells (elements)
+    integer,         intent(in):: numNodes                  !# of nodes
+    integer,         intent(in):: elem2node(3,numElems)     !Cells (element) to node connectivity
     double precision,intent(in):: xn(numNodes),yn(numNodes) !Node global coordinates
     !Child Points
-    integer,    intent(in)   :: npts
+    integer,         intent(in)   :: npts
     double precision,intent(in)   :: xpts(npts),ypts(npts)
-    integer,    intent(inout):: intp(3,npts)
+    integer,         intent(inout):: intp(3,npts)
     double precision,intent(inout):: cntp(3,npts)
     !Extrapolation
-    double precision,   intent(in):: xtrapdist
+    double precision,intent(in):: xtrapdist
     !Internal variables
-    integer:: i,j,k
+    integer:: i,j,k,intPoints
     double precision:: xtri(3),ytri(3),wcoef(3),xp,yp
     double precision:: dist,distmin
     logical:: inTri
     
     !Initialize
     intp = 0
-    cntp = 0.0
+    cntp = 0d0
+    
+    write(*,*) 'Computing Interpolation Coefficients'
+    intPoints = npts/20
     
 d1: do i=1,npts !Points
       xp = xpts(i) !Global coordinates
       yp = ypts(i) !Global coordinates
+      
+      if(numElems > 1000000 .and. mod(i,intPoints)==0)then
+        write(*,'(2x,I2,A1)') 100*i/npts,'%'
+      endif
       
       !Search if point is in any triangles
       do j=1,numElems !Elements
@@ -863,17 +890,21 @@ d1: do i=1,npts !Points
       enddo !j
       
       !Extrapolation to nearest node
-      distmin = 1.0e20
+      distmin = 1d20
       do k=1,numNodes
-        dist = sqrt((xp-xn(k))**2 + (yp-yn(k))**2 + 1e-15)
+        dist = sqrt((xp-xn(k))**2 + (yp-yn(k))**2 + 1d-15)
         if(dist < distmin)then
           distmin = dist
           intp(1,i) = k
         endif
       enddo
       cntp(1,i) = xtrapfunc(distmin,xtrapdist)
-      cntp(2:3,i) = 0.0
+      cntp(2:3,i) = 0d0
     enddo d1
+    
+    if(numElems > 1000000)then
+      write(*,'(2x,A)') '100%'
+    endif
     
   endsubroutine
 
@@ -892,7 +923,7 @@ d1: do i=1,npts !Points
     implicit none
     double precision,intent(in):: xt(3),yt(3),xi,yi
     double precision,intent(out):: w(3)
-    double precision :: d,xn(3),yn(3),xin,yin,xmin,ymin,xrange,yrange,sumw
+    double precision :: dInv,xn(3),yn(3),xin,yin,xmin,ymin,xrange,yrange,sumw
     
     !Normalize to reduce precision errors
     xmin = minval(xt)
@@ -905,10 +936,10 @@ d1: do i=1,npts !Points
     yin = (yi-ymin)/yrange
     
     !Calculate coefficients using Cramer's Rule
-    d = xn(1)*(yn(2)-yn(3)) + xn(2)*(yn(3)-yn(1)) + xn(3)*(yn(1)-yn(2))
-    w(1) = (xin*(yn(2)-yn(3)) + yin*(xn(3)-xn(2)) + xn(2)*yn(3) - xn(3)*yn(2))/d
-    w(2) = (xin*(yn(3)-yn(1)) + yin*(xn(1)-xn(3)) + xn(3)*yn(1) - xn(1)*yn(3))/d
-    w(3) = (xin*(yn(1)-yn(2)) + yin*(xn(2)-xn(1)) + xn(1)*yn(2) - xn(2)*yn(1))/d
+    dInv = 1d0/(xn(1)*(yn(2)-yn(3)) + xn(2)*(yn(3)-yn(1)) + xn(3)*(yn(1)-yn(2)))
+    w(1) = (xin*(yn(2)-yn(3)) + yin*(xn(3)-xn(2)) + xn(2)*yn(3) - xn(3)*yn(2))*dInv
+    w(2) = (xin*(yn(3)-yn(1)) + yin*(xn(1)-xn(3)) + xn(3)*yn(1) - xn(1)*yn(3))*dInv
+    w(3) = (xin*(yn(1)-yn(2)) + yin*(xn(2)-xn(1)) + xn(1)*yn(2) - xn(2)*yn(1))*dInv
     
     sumw = sum(w)
     w = w/sum(w)
@@ -920,7 +951,7 @@ d1: do i=1,npts !Points
       write(*,*) 'yt(1:3) = ',yt
       write(*,*) 'xi = ',xi
       write(*,*) 'yi = ',yi
-      write(*,*) 'd = ',d
+      write(*,*) 'd = ',1d0/dInv
       stop
     endif
     
@@ -975,7 +1006,7 @@ d1: do i=1,npts !Points
     
     !Normalized error
     err = abs(suma-abc)/abc
-    if(err <= 0.0001)then
+    if(err <= 0.0001d0)then
       inTri = .true.
     else
       inTri = .false.
@@ -996,7 +1027,7 @@ d1: do i=1,npts !Points
     xn = xt - minval(xt)
     yn = yt - minval(yt)
     
-    at = 0.5*abs(xn(1)*(yn(2)-yn(3)) &
+    at = 0.5d0*abs(xn(1)*(yn(2)-yn(3)) &
        + xn(2)*(yn(3)-yn(1)) &
        + xn(3)*(yn(1)-yn(2)))
     
@@ -1043,7 +1074,7 @@ d1: do i=1,npts !Points
     read(63,'(a80)') input
     read(63,*) numTimeSteps, numNodesParent, t_inc, ts_inc, idx
     allocate(elevNodeParent(numNodesParent))
-
+    
     !Child Water Level File
     open(163,file=wsefilechl)
     write(163,'(a80)') input
@@ -1058,13 +1089,13 @@ d1: do i=1,npts !Points
     
     do i=1,numTimeSteps
       !Step Header
-      elevDry = ELEV_DRY
       numWetNodesParent = -1
       read(63,150,iostat=ierr) time, step, numWetNodesParent, elevDry !time in seconds
       
       if(numWetNodesParent > 0)then
         isFullFormat = .false.
       else
+        elevDry = ELEV_DRY
         isFullFormat = .true.
       endif
       
