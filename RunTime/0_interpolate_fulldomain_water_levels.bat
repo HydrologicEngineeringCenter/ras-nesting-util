@@ -1,1 +1,1 @@
-..\VisualStudio\x64\Release\Nesting.exe -interpwse "fort.14" "Coordinates.csv" "fort.63" "fort.csv" 1.0
+..\VisualStudio\x64\Release\Nesting.exe -interpwse "fort.14" "BoundaryCoordinates.csv" "fort.63" "fort.csv" 1.0

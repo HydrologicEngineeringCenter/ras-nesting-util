@@ -9,7 +9,11 @@ program nestingMain
   character(len=256):: polyfile        !Bounding polygon csv file and path
   character(len=256):: savePointFile
   character(len=256),allocatable:: parentWSEFiles(:)
+  character(len=256),allocatable:: parentPresFiles(:)
+  character(len=256),allocatable:: parentWindFiles(:)
   character(len=256),allocatable:: childWSEFiles(:)
+  character(len=256),allocatable:: childPresFiles(:)
+  character(len=256),allocatable:: childWindFiles(:)
   character(len=256),allocatable:: pointsWSEFiles(:)
   character(len=256),allocatable:: arg(:)
   character(len=256):: msg
@@ -18,19 +22,14 @@ program nestingMain
   
   narg = command_argument_count()
   if(narg == 0)then
-    !*** Tests ***
-    !call TEST_triangulate()
-    !call TEST_INPolygon()
-    !*** Full Domain ***
-    call TEST_interpwse_parent()
-    !*** Subdomain ***
-    !call TEST_gensub()
-    !call TEST_extractwse()
-    !call TEST_interpwse_child()
-    !*** Save Points ***
-    !call TEST_trisp()
-    !call TEST_extractsp()
-    !call TEST_interpsp()
+    call TEST_triangulate()
+    call TEST_INPolygon()
+    call TEST_gensub()
+    call TEST_extractwse()
+    call TEST_interpwse()
+    call TEST_trisp()
+    call TEST_extractsp()
+    call TEST_interpsp()
     stop
   endif
   
@@ -67,8 +66,40 @@ program nestingMain
       parentWSEFiles(i) = arg(2+i)
       childWSEFiles(i) = arg(3+i)
     enddo
-    call nesting_extractwse(childGridFile, &
+    call nesting_extract_wse(childGridFile, &
       nts, parentWSEFiles, childWSEFiles, status, msg)
+    
+  case('-extractpres')
+    if(narg < 4)then
+      write(*,*) 'ERROR: Invalid number of arguments'
+      pause
+      stop
+    endif
+    nts = (narg - 2)/2
+    childGridFile = arg(2)
+    allocate(parentPresFiles(nts),childPresFiles(nts))
+    do i=1,nts
+      parentPresFiles(i) = arg(2+i)
+      childPresFiles(i) = arg(3+i)
+    enddo
+    call nesting_extract_pressure(childGridFile, &
+      nts, parentPresFiles, childPresFiles, status, msg)
+    
+  case('-extractwind')
+    if(narg < 4)then
+      write(*,*) 'ERROR: Invalid number of arguments'
+      pause
+      stop
+    endif
+    nts = (narg - 2)/2
+    childGridFile = arg(2)
+    allocate(parentWindFiles(nts),childWindFiles(nts))
+    do i=1,nts
+      parentWindFiles(i) = arg(2+i)
+      childWindFiles(i) = arg(3+i)
+    enddo
+    call nesting_extract_wind(childGridFile, &
+      nts, parentWindFiles, childWindFiles, status, msg)
     
   case('-interpwse')
     if(narg < 5)then
@@ -125,6 +156,7 @@ contains
 !*****************************************************
   subroutine TEST_INPolygon()
 !*****************************************************
+    use nestingModule
     implicit none
     integer:: np
     double precision,allocatable:: xp(:),yp(:)
@@ -168,17 +200,25 @@ contains
 !****************************************
   subroutine TEST_gensub()
 !****************************************
+    use nestingModule
     implicit none
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: parentGridFile,polyFile,childGridFile
+  
+    !parentGridFile = "C:\Projects\hec-ras\engine\Nesting\RunTime\fort.14"
+    !polyFile = "C:\Projects\hec-ras\engine\Nesting\RunTime\box.csv"
+    !childGridFile = "C:\Projects\hec-ras\engine\Nesting\RunTime\ChildBox.grd"
     
-    parentGridFile = "..\RunTime\fort.14"
-    polyFile       = "..\RunTime\Polygon.csv"
-    childGridFile  = "..\RunTime\Child.grd"
+    parentGridFile = "D:\Projects\Variable_WSE_BC\Nesting\DickinsonBayou\Harvey\S2G_new_lidar_full_roads_PAOF_NoProjects_v7.grd"
+    polyFile = "D:\Projects\Variable_WSE_BC\Nesting\DickinsonBayou\Harvey\boxBC.csv"
+    childGridFile = "D:\Projects\Variable_WSE_BC\Nesting\DickinsonBayou\Harvey\DickinsonChildBCHarvey.grd"
     
-    !parentGridFile = "CCDB_all_CC_N_DB_v2.grd"
-    !polyFile = "polygonBoundaryNeches.csv"
-    !childGridFile = "ChildNeches.grd"
+    !parentGridFile = "D:\HEC\HEC-RAS\Shahidul\RAS_enhancement\Mesh_Allflows\CCDB_all_CC_N_DB_v2.grd"
+    !polyFile = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\polygonBoundaryNeches.csv"
+    !childGridFile = "D:\HEC\HEC-RAS\Shahidul\Neches\Nesting\ChildNeches.grd"
     
-    call nesting_gensub(parentGridFile, polyFile, childGridFile, status, msg)
+    call nesting_gensub(parentGridFile,polyFile,childGridFile,status,msg)
     
     if(status /= 0)then
       write(*,*) 'ERROR: Failed TEST_gensub: ', trim(msg)
@@ -190,13 +230,17 @@ contains
   subroutine TEST_trisp()
 ! Triangulate Save Points
 !****************************************
+    use nestingModule
     implicit none
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: savePointFile,polyFile,childGridFile
     
     savePointFile = "..\Savepoints\elev_stat.151"
     polyFile = "..\Nesting\DickinsonBayou\Ike\boxBC.csv"
     childGridFile = "..\Nesting\DickinsonBayou\Ike\DickinsonChildIkeSavePoints.grd"
     
-    call nesting_trisp(savePointFile, polyFile, childGridFile, status, msg)
+    call nesting_trisp(savePointFile,polyFile,childGridFile,status,msg)
     
     if(status /= 0)then
       write(*,*) 'ERROR: Failed TEST_trisp: ', trim(msg)
@@ -209,17 +253,17 @@ contains
 ! Extract water surface elevations from 
 ! parent or child fort.63 file
 !****************************************
+    use nestingModule
     implicit none
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: childGridFile,parentWSEFiles(1),childWSEFiles(1)
+  
+    childGridFile = "..\Nesting\Subdomain.grd"
+    parentWSEFiles(1) = "..\Savepoints\fort.61"
+    childWSEFiles(1) = "..\Nesting\Ike\Child.61"
     
-    nts = 1
-    allocate(parentWSEFiles(nts),childWSEFiles(nts))
-    
-    childGridFile = "..\Nesting\SubdomainSavePointsNeches.grd"
-    parentWSEFiles(1) = "..\Savepoints\" &
-      // "CTXCS_TP_0009_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_CCDB01E02T_All_Flows_CCDB_TIMEVARY_Oct13_fort.61"
-    childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.61"
-    
-    call nesting_extractwse(childGridFile, nts, parentWSEFiles, childWSEFiles, status, msg)
+    call nesting_extract_wse(childGridFile,1,parentWSEFiles,childWSEFiles,status,msg)
     
     if(status /= 0)then
       write(*,*) 'ERROR: Failed TEST_extractsp: ', trim(msg)
@@ -232,21 +276,17 @@ contains
 ! Extract water surface elevations from 
 ! parent or child fort.63 file
 !****************************************
+    use nestingModule
     implicit none
-    
-    nts = 1
-    allocate(parentWSEFiles(nts),childWSEFiles(nts))
-    
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: childGridFile,parentWSEFiles(1),childWSEFiles(1)
+  
     childGridFile     = "..\RunTime\Child.grd"
     parentWSEFiles(1) = "..\RunTime\fort.63"
     childWSEFiles(1)  = "..\RunTime\Child.63"
     
-    !childGridFile = "..\Nesting\ChildNeches.grd"
-    !parentWSEFiles(1) = "..\Model_results\" &
-    !  // "CTXCS_TP_0009_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_CCDB01E02T_All_Flows_CCDB_TIMEVARY_Oct13_fort.63"
-    !childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.63"
-    
-    call nesting_extractwse(childGridFile, nts, parentWSEFiles, childWSEFiles, status, msg)
+    call nesting_extract_wse(childGridFile,1,parentWSEFiles,childWSEFiles,status,msg)
     
     if(status /= 0)then
       write(*,*) 'ERROR: Failed TEST_extractwse: ', trim(msg)
@@ -255,60 +295,50 @@ contains
   endsubroutine
   
 !****************************************
-  subroutine TEST_interpwse_parent()
+  subroutine TEST_extractpres()
+! Extract water surface elevations from 
+! parent or child fort.63 file
 !****************************************
+    use nestingModule
     implicit none
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: childGridFile,parentPresFiles(1),childPresFiles(1)
+  
+    childGridFile = "..\RunTime\Child.grd"
+    parentPresFiles(1) = "..\RunTime\fort.63"
+    childPresFiles(1) = "..\RunTime\Child.63"
     
-    nts = 1
-    allocate(parentWSEFiles(nts), pointsWSEFiles(nts))
-    
-    parentGridFile =  "..\RunTime\fort.14"
-    pointsCoordFile = "..\RunTime\Coordinates.csv"
-    parentWSEFiles(1) = "..\RunTime\fort.63"
-    pointsWSEFiles(1) = "..\RunTime\fort.csv"
-    factor = 1d0/0.3048d0 !Convert from m to ft
-    
-    !parentGridFile = "..\ADCIRC Models\Run_009\CCDB_all_CC_N_DB_v2.grd"
-    !pointsCoordFile = "..\ADCIRC Models\Run_009\DK_multi_facept.csv"
-    !parentWSEFiles(1) = "..\ADCIRC Models\Run_009\" &
-    !  // "CTXCS_TP_0009_HIS_Tides_1_SLC_0_RFC_0_WAV_1_GCP_CCDB01E02T_All_Flows_CCDB_TIMEVARY_Oct13_fort.63"
-    !pointsWSEFiles(1) = "..\ADCIRC Models\Run_009\wseBoundary_Run_0009.csv"
-    !factor = 1d0/0.3048d0 !Convert from m to ft
-    
-    call nesting_interpwse(parentGridFile, pointsCoordFile, &
-      nts, parentWSEFiles, pointsWSEFiles, factor, status, msg)
+    call nesting_extract_pressure(childGridFile,1,parentPresFiles,childPresFiles,status,msg)
     
     if(status /= 0)then
-      write(*,*) 'ERROR: Failed TEST_interpwse_parent: ', trim(msg)
+      write(*,*) 'ERROR: Failed TEST_extractpres: ', trim(msg)
     endif
     
   endsubroutine
   
 !****************************************
-  subroutine TEST_interpwse_child()
+  subroutine TEST_interpwse()
 !****************************************
+    use nestingModule
     implicit none
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: childGridFile,pointsCoordFile
+    character(len=512):: childWSEFiles(1),pointsWSEFiles(1)
+    double precision:: factor
     
-    nts = 1
-    allocate(childWSEFiles(nts),pointsWSEFiles(nts))
-    
-    childGridFile =  "..\RunTime\Child.grd"
-    pointsCoordFile = "..\RunTime\Coordinates.csv"
+    childGridFile = "..\RunTime\Child.grd"
+    pointsCoordFile = "..\RunTime\BoundaryCoordinates.csv"
     childWSEFiles(1) = "..\RunTime\Child.63"
     pointsWSEFiles(1) = "..\RunTime\Child.csv"
     factor = 1d0/0.3048d0 !Convert from m to ft
     
-    !childGridFile  = "..\Nesting\ChildNeches.grd"
-    !pointsCoordFile = "..\Nesting\boundaryCoordinatesNeches.csv"
-    !childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.63"
-    !pointsWSEFiles(1) = "..\Nesting\Ike\wseBoundaryNechesIke.csv"
-    !factor = 1d0/0.3048d0 !Convert from m to ft
-    
-    call nesting_interpwse(childGridFile, pointsCoordFile, &
-      1, childWSEFiles, pointsWSEFiles, factor, status, msg)
+    call nesting_interpwse(childGridFile,pointsCoordFile,&
+      1,childWSEFiles,pointsWSEFiles,factor,status,msg)
     
     if(status /= 0)then
-      write(*,*) 'ERROR: Failed TEST_interpwse_child: ', trim(msg)
+      write(*,*) 'ERROR: Failed TEST_interpwse: ', trim(msg)
     endif
     
   endsubroutine
@@ -316,22 +346,25 @@ contains
 !****************************************
   subroutine TEST_interpsp()
 !****************************************
+    use nestingModule
     implicit none
+    integer:: status
+    character(len=256):: msg
+    character(len=512):: childGridFile,pointsCoordFile
+    character(len=512):: childWSEFiles(1),pointsWSEFiles(1)
+    double precision:: factor
     
-    nts = 1
-    allocate(childWSEFiles(nts),pointsWSEFiles(nts))
-    
-    childGridFile = "..\Nesting\SubdomainSavePointsNeches.grd"
-    pointsCoordFile = "..\Nesting\boundaryCoordinatesNeches.csv"
-    childWSEFiles(1) = "..\Nesting\Ike\ChildNechesIke.61"
-    pointsWSEFiles(1) = "..\Nesting\Ike\wseBoundaryNechesIkeSP.csv"
+    childGridFile = "..\Nesting\SubdomainSavePoints.grd"
+    pointsCoordFile = "..\Nesting\BoundaryCoordinates.csv"
+    childWSEFiles(1) = "..\Nesting\Ike\Child.61"
+    pointsWSEFiles(1) = "..\Nesting\Ike\wseBoundary.csv"
     factor = 1d0/0.3048d0 !Convert from m to ft
     
-    call nesting_interpwse(childGridFile, pointsCoordFile, &
-      nts, childWSEFiles, pointsWSEFiles, factor, status, msg)
+    call nesting_interpwse(childGridFile,pointsCoordFile,&
+      1,childWSEFiles,pointsWSEFiles,factor,status,msg)
     
     if(status /= 0)then
-      write(*,*) 'ERROR: Failed TEST_extractwse: ', trim(msg)
+      write(*,*) 'ERROR: Failed TEST_interpsp: ', trim(msg)
     endif
     
   endsubroutine

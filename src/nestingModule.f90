@@ -85,22 +85,15 @@ contains
     write(*,*) 'Reading Polygon File: ',trim(polyFile)
     call read_csv(polyFile,polyxy)
     np = size(polyxy,1)
-    if(np < 3)then
-      msg = '  Error: Polygon must contain at least 3 points'
-      status = -1
-      return
-    else
-      write(*,*)'   Success'
-    endif
+    write(*,*)'   Success'
     
     !Create Child Mesh
     write(*,*) 'Creating Child Mesh'
     call create_child_mesh(P, C, np, polyxy(:,1), polyxy(:,2))
-    C%filename = childGridFile
-    C%header   = P%header
     write(*,*)'   Success'
     
     !Write Child Mesh
+    C%filename = childGridFile
     write(*,*) 'Writing Child Mesh: ',trim(C%filename)
     call write_grid14(C%filename, P%header, &
       C%numElems, C%numNodes, C%nodexyz, C%elem2node, C%nodeParent)
@@ -296,14 +289,14 @@ contains
   endsubroutine
   
 !**************************************************************
-  subroutine nesting_extractwse(childGridFile, numWSEFiles, &
+  subroutine nesting_extract_wse(childGridFile, numFiles, &
     parentWSEFiles, childWSEFiles, status, msg)
 !**************************************************************
     implicit none
     character(len=*),intent(in):: childGridFile
-    integer,intent(in):: numWSEFiles
-    character(len=*),intent(in):: parentWSEFiles(numWSEFiles)
-    character(len=*),intent(in):: childWSEFiles(numWSEFiles)
+    integer,intent(in):: numFiles
+    character(len=*),intent(in):: parentWSEFiles(numFiles)
+    character(len=*),intent(in):: childWSEFiles(numFiles)
     integer,intent(inout):: status
     character(len=*),intent(inout):: msg
     type(MeshType):: C
@@ -317,11 +310,87 @@ contains
     write(*,*)'   Success'
     
     !Extract Water Levels on Child Mesh
-    do i=1,numWSEFiles
+    do i=1,numFiles
       write(*,*) 'Parent Water Level File: ',trim(parentWSEFiles(i))
       write(*,*) 'Child Water Level File:  ',trim(childWSEFiles(i))
       call extract_child_water_levels(parentWSEFiles(i), &
         childWSEFiles(i), C%numNodes, C%nodeParent)
+    enddo
+    write(*,*)'   Success'
+    
+    !Clean
+    call deallocate_mesh(C)
+    
+    status = 0
+    msg = 'Success'
+    
+  endsubroutine
+  
+!*******************************************************************
+  subroutine nesting_extract_pressure(childGridFile, numFiles, &
+    parentPresFiles, childPresFiles, status, msg)
+!*******************************************************************
+    implicit none
+    character(len=*),intent(in):: childGridFile
+    integer,intent(in):: numFiles
+    character(len=*),intent(in):: parentPresFiles(numFiles)
+    character(len=*),intent(in):: childPresFiles(numFiles)
+    integer,intent(inout):: status
+    character(len=*),intent(inout):: msg
+    type(MeshType):: C
+    integer:: i
+    
+    !Read Mesh (Could be Parent or Child Mesh)
+    C%filename = childGridFile
+    write(*,*) 'Reading Mesh: ',trim(C%filename)
+    call read_grid14(C%filename, C%header, C%numElems, &
+      C%numNodes, C%nodexyz, C%elem2node, C%nodeParent)
+    write(*,*)'   Success'
+    
+    !Extract Water Levels on Child Mesh
+    do i=1,numFiles
+      write(*,*) 'Parent Atmospheric Pressure File: ',trim(parentPresFiles(i))
+      write(*,*) 'Child Atmospheric Pressure File:  ',trim(childPresFiles(i))
+      call extract_child_pressure(parentPresFiles(i), &
+        childPresFiles(i), C%numNodes, C%nodeParent)
+    enddo
+    write(*,*)'   Success'
+    
+    !Clean
+    call deallocate_mesh(C)
+    
+    status = 0
+    msg = 'Success'
+    
+  endsubroutine
+    
+!**************************************************************
+  subroutine nesting_extract_wind(childGridFile, numFiles, &
+    parentWindFiles, childWindFiles, status, msg)
+!**************************************************************
+    implicit none
+    character(len=*),intent(in):: childGridFile
+    integer,intent(in):: numFiles
+    character(len=*),intent(in):: parentWindFiles(numFiles)
+    character(len=*),intent(in):: childWindFiles(numFiles)
+    integer,intent(inout):: status
+    character(len=*),intent(inout):: msg
+    type(MeshType):: C
+    integer:: i
+    
+    !Read Mesh (Could be Parent or Child Mesh)
+    C%filename = childGridFile
+    write(*,*) 'Reading Mesh: ',trim(C%filename)
+    call read_grid14(C%filename, C%header, C%numElems, &
+      C%numNodes, C%nodexyz, C%elem2node, C%nodeParent)
+    write(*,*)'   Success'
+    
+    !Extract Water Levels on Child Mesh
+    do i=1,numFiles
+      write(*,*) 'Parent Wind File: ',trim(parentWindFiles(i))
+      write(*,*) 'Child Wind File:  ',trim(childWindFiles(i))
+      call extract_child_wind(parentWindFiles(i), &
+        childWindFiles(i), C%numNodes, C%nodeParent)
     enddo
     write(*,*)'   Success'
     
@@ -447,7 +516,7 @@ contains
     double precision,allocatable:: elevNodes(:), elevPts(:)
     character(len=512):: header
     integer:: i, j, node, numTimeSteps, step, ts_inc, irType
-    integer:: ierr, numWetNodes, num, intTimeSteps
+    integer:: ierr, numWetNodes, num
     double precision:: t_inc, time, elevDry, elev
     double precision,parameter:: ELEV_DRY = -99999.0
     
@@ -487,19 +556,11 @@ contains
     endif
     write(23,200) ((fpts(i),','),i=1,npts-1),fpts(npts)
     
-    write(*,*) 'Number of time steps: ',numTimeSteps
-    write(*,*) 'Interpolating Values'
-    
-    intTimeSteps = numTimeSteps/20
-    
     allocate(elevNodes(numNodes))
     allocate(elevPts(npts))
     do i=1,numTimeSteps
-      if(numElems > 1000000 .and. mod(i,intTimeSteps)==0)then
-        write(*,'(2x,I2,A1)') 100*i/numTimeSteps,'%'
-      endif
-      
       !Step Header
+      elevDry = ELEV_DRY
       numWetNodes = -1
       read(63,150,iostat=ierr) time, step, numWetNodes, elevDry !time in seconds
       
@@ -511,7 +572,6 @@ contains
           elevNodes(node) = elev
         enddo
       else !Full format
-        elevDry = ELEV_DRY
         do j=1,numNodes
           read(63,*) node,elevNodes(j)
         enddo
@@ -534,10 +594,6 @@ contains
       write(23,200) ((elevPts(j),','),j=1,npts-1),elevPts(npts)
     enddo
     
-    if(numElems > 1000000)then
-      write(*,'(2x,A)') '100%'
-    endif
-    
     close(63)
     close(23)
     
@@ -551,11 +607,11 @@ contains
     valDry, npts, intp, cntp, valPts)
 !******************************************************
     implicit none
-    integer,         intent(in) :: numNodes
+    integer,intent(in):: numNodes
     double precision,intent(in) :: valNodes(numNodes)
     double precision,intent(in) :: valDry
-    integer,         intent(in) :: npts
-    integer,         intent(in) :: intp(3,npts)
+    integer,    intent(in) :: npts
+    integer,    intent(in) :: intp(3,npts)
     double precision,intent(in) :: cntp(3,npts)
     double precision,intent(out):: valpts(npts)
     integer:: i,j,idx,ind(3)
@@ -569,12 +625,12 @@ contains
         if(abs(valNodes(j) - valDry) > 1e-6)then
           wcoef(idx) = cntp(idx,i) !Wet
         else
-          wcoef(idx) = 0.0d0 !Dry
+          wcoef(idx) = 0.0 !Dry
         endif
       enddo
       !Interpolate
       sumw = sum(wcoef)
-      if(sumw > 1d-20)then !At least one node wet
+      if(sumw > 1e-20)then !At least one node wet
         wcoef = wcoef / sumw !Normalize wet weights
         valpts(i) = sum(wcoef * valNodes(ind))
       else !All nodes wet
@@ -686,7 +742,7 @@ contains
     integer:: i,j,k,intNodes,intElems
     logical:: writeStatus = .false.
     
-222 format(I6,I6)
+222 format(I7,1x,I7)
 333 format(I6,3(1x,F20.10),1x,I10)
 444 format(I6,1x,I3,3(1x,I6))
     
@@ -844,37 +900,30 @@ contains
 !**********************************************************************
     implicit none
     !Parent Unstructured Triangular Mesh
-    integer,         intent(in):: numElems                  !# of cells (elements)
-    integer,         intent(in):: numNodes                  !# of nodes
-    integer,         intent(in):: elem2node(3,numElems)     !Cells (element) to node connectivity
+    integer,    intent(in):: numElems                  !# of cells (elements)
+    integer,    intent(in):: numNodes                  !# of nodes
+    integer,    intent(in):: elem2node(3,numElems)     !Cells (element) to node connectivity
     double precision,intent(in):: xn(numNodes),yn(numNodes) !Node global coordinates
     !Child Points
-    integer,         intent(in)   :: npts
+    integer,    intent(in)   :: npts
     double precision,intent(in)   :: xpts(npts),ypts(npts)
-    integer,         intent(inout):: intp(3,npts)
+    integer,    intent(inout):: intp(3,npts)
     double precision,intent(inout):: cntp(3,npts)
     !Extrapolation
-    double precision,intent(in):: xtrapdist
+    double precision,   intent(in):: xtrapdist
     !Internal variables
-    integer:: i,j,k,intPoints
+    integer:: i,j,k
     double precision:: xtri(3),ytri(3),wcoef(3),xp,yp
     double precision:: dist,distmin
     logical:: inTri
     
     !Initialize
     intp = 0
-    cntp = 0d0
-    
-    write(*,*) 'Computing Interpolation Coefficients'
-    intPoints = npts/20
+    cntp = 0.0
     
 d1: do i=1,npts !Points
       xp = xpts(i) !Global coordinates
       yp = ypts(i) !Global coordinates
-      
-      if(numElems > 1000000 .and. mod(i,intPoints)==0)then
-        write(*,'(2x,I2,A1)') 100*i/npts,'%'
-      endif
       
       !Search if point is in any triangles
       do j=1,numElems !Elements
@@ -890,21 +939,17 @@ d1: do i=1,npts !Points
       enddo !j
       
       !Extrapolation to nearest node
-      distmin = 1d20
+      distmin = 1.0e20
       do k=1,numNodes
-        dist = sqrt((xp-xn(k))**2 + (yp-yn(k))**2 + 1d-15)
+        dist = sqrt((xp-xn(k))**2 + (yp-yn(k))**2 + 1e-15)
         if(dist < distmin)then
           distmin = dist
           intp(1,i) = k
         endif
       enddo
       cntp(1,i) = xtrapfunc(distmin,xtrapdist)
-      cntp(2:3,i) = 0d0
+      cntp(2:3,i) = 0.0
     enddo d1
-    
-    if(numElems > 1000000)then
-      write(*,'(2x,A)') '100%'
-    endif
     
   endsubroutine
 
@@ -923,7 +968,7 @@ d1: do i=1,npts !Points
     implicit none
     double precision,intent(in):: xt(3),yt(3),xi,yi
     double precision,intent(out):: w(3)
-    double precision :: dInv,xn(3),yn(3),xin,yin,xmin,ymin,xrange,yrange,sumw
+    double precision :: d,xn(3),yn(3),xin,yin,xmin,ymin,xrange,yrange,sumw
     
     !Normalize to reduce precision errors
     xmin = minval(xt)
@@ -936,10 +981,10 @@ d1: do i=1,npts !Points
     yin = (yi-ymin)/yrange
     
     !Calculate coefficients using Cramer's Rule
-    dInv = 1d0/(xn(1)*(yn(2)-yn(3)) + xn(2)*(yn(3)-yn(1)) + xn(3)*(yn(1)-yn(2)))
-    w(1) = (xin*(yn(2)-yn(3)) + yin*(xn(3)-xn(2)) + xn(2)*yn(3) - xn(3)*yn(2))*dInv
-    w(2) = (xin*(yn(3)-yn(1)) + yin*(xn(1)-xn(3)) + xn(3)*yn(1) - xn(1)*yn(3))*dInv
-    w(3) = (xin*(yn(1)-yn(2)) + yin*(xn(2)-xn(1)) + xn(1)*yn(2) - xn(2)*yn(1))*dInv
+    d = xn(1)*(yn(2)-yn(3)) + xn(2)*(yn(3)-yn(1)) + xn(3)*(yn(1)-yn(2))
+    w(1) = (xin*(yn(2)-yn(3)) + yin*(xn(3)-xn(2)) + xn(2)*yn(3) - xn(3)*yn(2))/d
+    w(2) = (xin*(yn(3)-yn(1)) + yin*(xn(1)-xn(3)) + xn(3)*yn(1) - xn(1)*yn(3))/d
+    w(3) = (xin*(yn(1)-yn(2)) + yin*(xn(2)-xn(1)) + xn(1)*yn(2) - xn(2)*yn(1))/d
     
     sumw = sum(w)
     w = w/sum(w)
@@ -951,7 +996,7 @@ d1: do i=1,npts !Points
       write(*,*) 'yt(1:3) = ',yt
       write(*,*) 'xi = ',xi
       write(*,*) 'yi = ',yi
-      write(*,*) 'd = ',1d0/dInv
+      write(*,*) 'd = ',d
       stop
     endif
     
@@ -1006,7 +1051,7 @@ d1: do i=1,npts !Points
     
     !Normalized error
     err = abs(suma-abc)/abc
-    if(err <= 0.0001d0)then
+    if(err <= 0.0001)then
       inTri = .true.
     else
       inTri = .false.
@@ -1027,7 +1072,7 @@ d1: do i=1,npts !Points
     xn = xt - minval(xt)
     yn = yt - minval(yt)
     
-    at = 0.5d0*abs(xn(1)*(yn(2)-yn(3)) &
+    at = 0.5*abs(xn(1)*(yn(2)-yn(3)) &
        + xn(2)*(yn(3)-yn(1)) &
        + xn(3)*(yn(1)-yn(2)))
     
@@ -1046,10 +1091,10 @@ d1: do i=1,npts !Points
   endfunction
   
 !****************************************************************************************
-  subroutine extract_child_water_levels(wsefilepar,wsefilechl,numNodesChild,nodeParent)
+  subroutine extract_child_water_levels(wseFileParent,wseFileChild,numNodesChild,nodeParent)
 !****************************************************************************************
     implicit none
-    character(len=*),intent(in):: wsefilepar,wsefilechl
+    character(len=*),intent(in):: wseFileParent,wseFileChild
     integer,intent(in):: numNodesChild !number of child nodes
     integer,intent(in):: nodeParent(numNodesChild)
     double precision:: time, t_inc
@@ -1070,32 +1115,32 @@ d1: do i=1,npts !Points
 400 format(a)
     
     !Parent Water Level File
-    open(63,file=wsefilepar)
+    open(63,file=wseFileParent)
     read(63,'(a80)') input
     read(63,*) numTimeSteps, numNodesParent, t_inc, ts_inc, idx
     allocate(elevNodeParent(numNodesParent))
-    
+
     !Child Water Level File
-    open(163,file=wsefilechl)
+    open(163,file=wseFileChild)
     write(163,'(a80)') input
     write(163,300) numTimeSteps, numNodesChild, t_inc, ts_inc, idx
     
     intLong = int(numNodesParent,kind=8) * int(numTimeSteps,kind=8)
     if(intLong > 10000000)then
       writeStatus = .true.
-      write(*,*) 'Interpolating Subdomain WSE:'
+      write(*,*) 'Extracting Subdomain WSE:'
     endif
     intSteps = numTimeSteps/100 + 1
     
     do i=1,numTimeSteps
       !Step Header
+      elevDry = ELEV_DRY
       numWetNodesParent = -1
       read(63,150,iostat=ierr) time, step, numWetNodesParent, elevDry !time in seconds
       
       if(numWetNodesParent > 0)then
         isFullFormat = .false.
       else
-        elevDry = ELEV_DRY
         isFullFormat = .true.
       endif
       
@@ -1154,6 +1199,146 @@ d1: do i=1,npts !Points
     
     !Clean
     deallocate(elevNodeParent)
+    
+  endsubroutine
+  
+!***********************************************************************************************
+  subroutine extract_child_pressure(presFileParent,presFileChild,numNodesChild,nodeParent)
+!***********************************************************************************************
+    implicit none
+    character(len=*),intent(in):: presFileParent,presFileChild
+    integer,intent(in):: numNodesChild !number of child nodes
+    integer,intent(in):: nodeParent(numNodesChild)
+    double precision:: time, t_inc
+    integer:: i,j,numNodesParent,numTimeSteps, step, node, ts_inc, idx
+    integer:: ierr, intSteps
+    character(len=128) :: input
+    integer(kind=8):: intLong
+    double precision,allocatable:: presNodeParent(:)
+    logical:: writeStatus = .false.
+    
+100 format(e22.10,i15,i10,e17.8)
+150 format(f,i,i,f)
+200 format(i10,e17.8)
+300 format(i11,i11,e16.7,i6,i6)
+400 format(a)
+    
+    !Parent Atm Pressure File
+    open(73,file=presFileParent)
+    read(73,'(a80)') input
+    read(73,*) numTimeSteps, numNodesParent, t_inc, ts_inc, idx
+    allocate(presNodeParent(numNodesParent))
+
+    !Child Water Level File
+    open(173,file=presFileChild)
+    write(173,'(a80)') input
+    write(173,300) numTimeSteps, numNodesChild, t_inc, ts_inc, idx
+    
+    intLong = int(numNodesParent,kind=8) * int(numTimeSteps,kind=8)
+    if(intLong > 10000000)then
+      writeStatus = .true.
+      write(*,*) 'Extracting Subdomain Atmospheric Pressures:'
+    endif
+    intSteps = numTimeSteps/100 + 1
+    
+    do i=1,numTimeSteps
+      !Step Header
+      read(73,150,iostat=ierr) time, step !time in seconds
+      
+      if(writeStatus .and. mod(i,intSteps)==0 .and. i/=numTimeSteps)then
+        write(*,'(2x,I2,A)') 100*i/numTimeSteps,'%'
+      endif
+      
+      !Read Parent Node Atmospheric Pressures
+      do j=1,numNodesParent
+        read(73,*) node, presNodeParent(j)
+      enddo
+      
+      !Write Child Node Atmospheric Pressures
+      write(173,100) time,step
+      do j=1,numNodesChild
+        write(173,200) j, presNodeParent(nodeParent(j))
+      enddo
+    enddo
+    if(writeStatus)then
+      write(*,'(2x,A)') '100%'
+    endif
+    
+    close(73)
+    close(173)
+    
+    !Clean
+    deallocate(presNodeParent)
+    
+  endsubroutine
+  
+!***********************************************************************************************
+  subroutine extract_child_wind(windFileParent,windFileChild,numNodesChild,nodeParent)
+!***********************************************************************************************
+    implicit none
+    character(len=*),intent(in):: windFileParent,windFileChild
+    integer,intent(in):: numNodesChild !number of child nodes
+    integer,intent(in):: nodeParent(numNodesChild)
+    double precision:: time, t_inc
+    integer:: i,j,numNodesParent,numTimeSteps, step, node, ts_inc, idx
+    integer:: ierr, intSteps
+    character(len=128) :: input
+    integer(kind=8):: intLong
+    double precision,allocatable:: windNodeParent(:,:)
+    logical:: writeStatus = .false.
+    
+100 format(e22.10,i15,i10,e17.8)
+150 format(f,i,i,f)
+200 format(i10,e17.8,1x,e17.8)
+300 format(i11,i11,e16.7,i6,i6)
+400 format(a)
+    
+    !Parent Wind File
+    open(74,file=windFileParent)
+    read(74,'(a80)') input
+    read(74,*) numTimeSteps, numNodesParent, t_inc, ts_inc, idx
+    allocate(windNodeParent(2,numNodesParent))
+
+    !Child Wind File
+    open(174,file=windFileChild)
+    write(174,'(a80)') input
+    write(174,300) numTimeSteps, numNodesChild, t_inc, ts_inc, idx
+    
+    intLong = int(numNodesParent,kind=8) * int(numTimeSteps,kind=8)
+    if(intLong > 10000000)then
+      writeStatus = .true.
+      write(*,*) 'Extracting Subdomain Winds:'
+    endif
+    intSteps = numTimeSteps/100 + 1
+    
+    do i=1,numTimeSteps
+      !Step Header
+      read(74,150,iostat=ierr) time, step !time in seconds
+      
+      if(writeStatus .and. mod(i,intSteps)==0 .and. i/=numTimeSteps)then
+        write(*,'(2x,I2,A)') 100*i/numTimeSteps,'%'
+      endif
+      
+      !Read Parent Node Winds
+      do j=1,numNodesParent
+        read(74,*) node, windNodeParent(1:2,j)
+      enddo
+      
+      !Write Child Node Winds
+      write(174,100) time,step
+      do j=1,numNodesChild
+        write(174,200) j, windNodeParent(1:2,nodeParent(j))
+      enddo
+    enddo
+    if(writeStatus)then
+      write(*,'(2x,A)') '100%'
+    endif
+    
+    close(74)
+    close(174)
+    
+    !Clean
+    deallocate(windNodeParent)
     
   endsubroutine
   

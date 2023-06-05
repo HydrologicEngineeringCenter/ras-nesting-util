@@ -1,1 +1,1 @@
-..\VisualStudio\x64\Release\Nesting.exe -interpwse "Child.grd" "Coordinates.csv" "Child.63" "Child.csv" 1.0
+..\VisualStudio\x64\Release\Nesting.exe -interpwse "Child.grd" "BoundaryCoordinates.csv" "Child.63" "Child.csv" 1.0
